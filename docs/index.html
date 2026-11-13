@@ -264,6 +264,19 @@
         if(v) P[t.no] = v;
       }
     }catch(e){ idbOK = false; }
+    sendMarks();
+  }
+  /* 저장 사실만 서버에 알림 (사진은 보내지 않음, 1KB 미만) — 실패하면 다음 접속 때 다시 보냄 */
+  async function sendMarks(){
+    for(const no of Object.keys(P)){
+      const p = P[no];
+      if(p.marked) continue;
+      try{
+        await call('markSaved', U.sid, U.name, U.code, no, p.savedAt);
+        p.marked = true;
+        try{ await idb('readwrite', st => st.put(p, pKey(no))); }catch(e){}
+      }catch(e){}
+    }
   }
   async function savePending(no, v){ await idb('readwrite', st => st.put(v, pKey(no))); P[no] = v; }
   async function dropPending(no){ try{ await idb('readwrite', st => st.delete(pKey(no))); }catch(e){} delete P[no]; }
@@ -456,6 +469,7 @@
       if(idbOK){
         try{
           await savePending(no, v);
+          sendMarks();
           $('upMsg').className='msg ok'; $('upMsg').textContent='휴대폰에 저장했어요. 와이파이에 연결되면 올려 주세요.';
           renderDetail(); renderPendingBar();
           return;

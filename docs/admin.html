@@ -43,6 +43,7 @@
   .sn{width:84px;height:84px;border-radius:6px;background:#0a0e16;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:16px}
   .sn img{width:100%;height:100%;object-fit:cover}
   .c2:hover{outline:1px solid var(--ok)}
+  .c3{background:rgba(92,150,230,.14);color:#7fb0f0;line-height:1.35}
   .tot{font-weight:700}
   .tot.full{color:var(--gold)}
   .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
@@ -129,7 +130,8 @@
   function setT(t){ tSel = t; render(); }
 
   function filtered(){ return D.students.filter(s => cls==='ALL' || s.cls===cls); }
-  function st(sid, t){ const r = D.rec[sid+'_'+t]; if(!r) return 0; if(r.f) return r.a ? 2 : 1; return r.a ? 1 : 0; }
+  // 0 미완료 · 1 이름만 · 3 저장만(미업로드) · 2 사진 업로드 완료
+  function st(sid, t){ const r = D.rec[sid+'_'+t]; if(!r || !r.a) return 0; if(r.f) return 2; if(r.s) return 3; return 1; }
 
   function render(){
     const classes = [...new Set(D.students.map(s => s.cls))]
@@ -143,20 +145,23 @@
     const T = D.treasures;
     const fullCnt = list.filter(s => T.every(t => st(s.sid,t)===2)).length;
     const perT = T.map(t => list.filter(s => st(s.sid,t)===2).length);
+    const savedOnly = list.filter(s => T.some(t => st(s.sid,t)===3)).length;
     $('summary').innerHTML = `<div class="sbox">학생<b>${list.length}</b></div><div class="sbox">전부 완료<b>${fullCnt}</b></div>` +
+      `<div class="sbox">미업로드 학생<b>${savedOnly}</b></div>` +
       T.map((t,i) => `<div class="sbox">보물${esc(t)}<b>${perT[i]}</b></div>`).join('');
 
     if(mode === 'table') renderTable(list, T); else renderGallery(list);
   }
 
   function renderTable(list, T){
-    $('view').innerHTML = `<div class="hint">🟩 이름+사진 완료(클릭하면 사진) · 🟨 이름만 맞힘 · — 미완료</div>
+    $('view').innerHTML = `<div class="hint">🟩 사진 업로드 완료(클릭하면 사진) · 🟦 찍어서 저장함(아직 업로드 안 함) · 🟨 이름만 맞힘 · — 미완료</div>
       <div class="tblwrap"><table><thead><tr><th>학번</th><th>이름</th>${T.map(t=>`<th>보물 ${esc(t)}</th>`).join('')}<th>완료</th></tr></thead><tbody>` +
       list.map(s => {
         let n = 0;
         const cells = T.map(t => {
           const v = st(s.sid, t), r = D.rec[s.sid+'_'+t];
           if(v===2){ n++; return `<td><span class="cell c2" onclick="viewPhoto('${esc(r.f)}','${esc(r.t||r.f)}','${esc(s.sid)}','${esc(s.name)}','${esc(t)}','${esc(r.p)}')"><span class="sn" data-f="${esc(r.t||r.f)}">⏳</span>${esc((r.p||'').slice(11,16))}</span></td>`; }
+          if(v===3) return `<td><span class="cell c3">📦 저장<br>${esc((r.s||'').slice(11,16))}</span></td>`;
           if(v===1) return `<td><span class="cell c1">이름 ✓</span></td>`;
           return `<td><span class="cell c0">—</span></td>`;
         }).join('');
