@@ -10,7 +10,7 @@ const SHEET_STUDENTS = '학생';
 const SHEET_TREASURES = '보물';
 const SHEET_RECORDS = '기록';
 
-const REC_HEADER = ['학번', '이름', '보물', '정답시각', '사진시각', '사진파일ID', '사진링크', '썸네일ID'];
+const REC_HEADER = ['학번', '이름', '보물', '정답시각', '사진시각', '사진파일ID', '사진링크', '썸네일ID', '저장시각'];
 
 /* ───────── API 진입 (GitHub Pages 화면 → fetch POST) ─────────
  * 요청: { fn: '함수이름', args: [...] }   (Content-Type: text/plain)
@@ -19,6 +19,7 @@ const REC_HEADER = ['학번', '이름', '보물', '정답시각', '사진시각'
 const API = {
   login: login,
   checkAnswer: checkAnswer,
+  markSaved: markSaved,
   uploadPhoto: uploadPhoto,
   getTreasureImage: getTreasureImage,
   adminData: adminData,
@@ -207,16 +208,17 @@ function upsertRecord_(sid, name, no, patch) {
     let idx = rows.findIndex(r => norm_(r[0]) === sid && String(r[2]) === String(no));
     let rec;
     if (idx < 0) {
-      rec = [sid, name, String(no), '', '', '', '', ''];
+      rec = [sid, name, String(no), '', '', '', '', '', ''];
     } else {
       rec = rows[idx].slice();
     }
     const old = { fileId: rec[5], thumbId: rec[7] };
     if (patch.answerTime) rec[3] = patch.answerTime;
-    if (patch.photoTime) rec[4] = patch.photoTime;
+    if (patch.photoTime) { rec[4] = patch.photoTime; if (!rec[8]) rec[8] = patch.photoTime; }
     if (patch.fileId) rec[5] = patch.fileId;
     if (patch.url) rec[6] = patch.url;
     if (patch.thumbId !== undefined) rec[7] = patch.thumbId;
+    if (patch.savedTime && !rec[8]) rec[8] = patch.savedTime;
     if (idx < 0) {
       sh.appendRow(rec);
       sh.getRange(sh.getLastRow(), 1).setNumberFormat('@').setValue(sid);
@@ -288,6 +290,16 @@ function uploadPhoto(sid, name, code, no, dataUrl, thumbUrl, savedAt) {
   return { ok: true, status: studentStatus_(u.sid) };
 }
 
+/** 사진을 휴대폰에 저장했다는 사실만 기록 (사진은 보내지 않음) */
+function markSaved(sid, name, code, no, savedAt) {
+  const u = auth_(sid, name, code);
+  const st = studentStatus_(u.sid)[String(no)];
+  if (!st || !st.answered) throw new Error('먼저 유물 이름을 맞혀 주세요.');
+  const time = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(savedAt || '')) ? String(savedAt) : now_();
+  upsertRecord_(u.sid, u.name, no, { savedTime: time });
+  return { ok: true };
+}
+
 /** 보물 이미지(드라이브 파일ID) → dataURL */
 function getTreasureImage(fileId) {
   const cache = CacheService.getScriptCache();
@@ -311,7 +323,7 @@ function adminData(code) {
   const treasures = getTreasureRows_().map(r => String(r[0]));
   const rec = {};
   readRecords_().rows.forEach(r => {
-    rec[norm_(r[0]) + '_' + r[2]] = { a: r[3], p: r[4], f: r[5], t: r[7] };
+    rec[norm_(r[0]) + '_' + r[2]] = { a: r[3], p: r[4], f: r[5], t: r[7], s: r[8] };
   });
   return { students, treasures, rec };
 }
@@ -352,7 +364,7 @@ function deleteAllPhotos() {
   folder.setTrashed(true);
   const { sh } = readRecords_();
   const last = sh.getLastRow();
-  if (last >= 2) sh.getRange(2, 5, last - 1, 4).clearContent();
+  if (last >= 2) sh.getRange(2, 5, last - 1, 5).clearContent();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const set = ss.getSheetByName(SHEET_SETTINGS);
   const v = set.getDataRange().getValues();
