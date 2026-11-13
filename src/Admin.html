@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root{--bg:#0d111a;--panel:#151b28;--card:#1a2030;--line:#2a3245;--text:#e8e9ee;--sub:#9aa2b5;
+        --gold:#c9a25c;--gold2:#a87b3c;--ok:#4fbf8a;--warn:#e0b34f;--err:#e06464}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Pretendard,-apple-system,'Malgun Gothic',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+  .wrap{max-width:1200px;margin:0 auto;padding:18px 14px 40px}
+  button,select,input{font-family:inherit}
+  button{cursor:pointer;border:none}
+  .inp{background:#0a0e16;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font-size:15px;outline:none}
+  .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1b1408;font-weight:700;border-radius:10px;padding:10px 16px}
+  .btn-ghost{background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 12px}
+  .btn-ghost.on{border-color:var(--gold);color:var(--gold)}
+  #login{max-width:340px;margin:18vh auto 0;text-align:center}
+  #login h1{font-size:22px;margin-bottom:18px}
+  #login .inp{width:100%;margin-bottom:10px}
+  #login .btn-gold{width:100%}
+  .msg{min-height:20px;margin-top:10px;color:var(--err)}
+  #main{display:none}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+  .bar h1{font-size:19px;margin-right:auto}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .sbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--sub)}
+  .sbox b{color:var(--gold);font-size:15px;margin-left:4px}
+  .tblwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;min-width:640px}
+  th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:center;white-space:nowrap}
+  th{background:#111624;color:var(--sub);font-weight:600;position:sticky;top:0}
+  td.l{text-align:left}
+  tr:hover td{background:#1b2132}
+  .cell{display:inline-flex;gap:3px;align-items:center;justify-content:center;min-width:56px;padding:4px 6px;border-radius:8px;font-size:12px}
+  .c0{color:#55607a}
+  .c1{background:rgba(224,179,79,.12);color:var(--warn)}
+  .c2{background:rgba(79,191,138,.14);color:var(--ok);cursor:pointer;flex-direction:column;gap:2px;padding:4px}
+  .sn{width:84px;height:84px;border-radius:6px;background:#0a0e16;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:16px}
+  .sn img{width:100%;height:100%;object-fit:cover}
+  .c2:hover{outline:1px solid var(--ok)}
+  .tot{font-weight:700}
+  .tot.full{color:var(--gold)}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .g{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer}
+  .g .ph{height:200px;background:#0a0e16;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12px}
+  .g .ph img{width:100%;height:100%;object-fit:cover}
+  .g .cap{padding:6px 8px;font-size:12.5px}
+  .g .cap small{color:var(--sub);display:block}
+  .g.none{opacity:.45;cursor:default}
+  #viewer{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:10;padding:14px}
+  #viewer img{max-width:96vw;max-height:82vh;border-radius:10px}
+  #viewer .cap{margin-top:10px;color:var(--text);font-size:15px}
+  #viewer .cap small{color:var(--sub);margin-left:8px}
+  .hint{color:var(--sub);font-size:12.5px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="login">
+    <h1>🗝️ 보물찾기 현황 (교사용)</h1>
+    <input id="acode" class="inp" type="password" placeholder="관리자 코드" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn-gold" onclick="doLogin()">확인</button>
+    <div id="lmsg" class="msg"></div>
+  </div>
+
+  <div id="main">
+    <div class="bar">
+      <h1>🗝️ 보물찾기 현황</h1>
+      <button class="btn-ghost on" id="mTable" onclick="setMode('table')">현황표</button>
+      <button class="btn-ghost" id="mGallery" onclick="setMode('gallery')">사진 모아보기</button>
+      <button class="btn-gold" onclick="refresh()">새로고침</button>
+    </div>
+    <div class="tabs" id="classTabs"></div>
+    <div class="tabs" id="tTabs" style="display:none"></div>
+    <div class="summary" id="summary"></div>
+    <div id="view"></div>
+  </div>
+</div>
+
+<div id="viewer" onclick="this.style.display='none'">
+  <img id="vImg" alt="">
+  <div class="cap" id="vCap"></div>
+</div>
+
+<script>
+  let CODE = '', D = null, cls = 'ALL', mode = 'table', tSel = null;
+  const thumbs = {};
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const call = (fn, ...a) => new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...a));
+  const errText = e => (e && e.message ? e.message : String(e)).replace(/^Error:\s*/,'');
+
+
+  async function doLogin(){
+    CODE = $('acode').value.trim();
+    $('lmsg').textContent = '';
+    try{
+      D = await call('adminData', CODE);
+      $('login').style.display='none'; $('main').style.display='block';
+      tSel = D.treasures[0];
+      render();
+    }catch(e){ $('lmsg').textContent = errText(e); }
+  }
+  async function refresh(){
+    try{ D = await call('adminData', CODE); render(); }catch(e){ alert(errText(e)); }
+  }
+  function setMode(m){
+    mode = m;
+    $('mTable').classList.toggle('on', m==='table');
+    $('mGallery').classList.toggle('on', m==='gallery');
+    render();
+  }
+  function setClass(c){ cls = c; render(); }
+  function setT(t){ tSel = t; render(); }
+
+  function filtered(){ return D.students.filter(s => cls==='ALL' || s.cls===cls); }
+  function st(sid, t){ const r = D.rec[sid+'_'+t]; if(!r) return 0; if(r.f) return r.a ? 2 : 1; return r.a ? 1 : 0; }
+
+  function render(){
+    const classes = [...new Set(D.students.map(s => s.cls))]
+      .sort((x, y) => { const [a1,a2] = x.split('-').map(Number), [b1,b2] = y.split('-').map(Number); return a1-b1 || a2-b2; });
+    $('classTabs').innerHTML = `<button class="btn-ghost ${cls==='ALL'?'on':''}" onclick="setClass('ALL')">전체</button>` +
+      classes.map(c => `<button class="btn-ghost ${cls===c?'on':''}" onclick="setClass('${esc(c)}')">${esc(c)}반</button>`).join('');
+    $('tTabs').style.display = mode==='gallery' ? 'flex' : 'none';
+    $('tTabs').innerHTML = D.treasures.map(t => `<button class="btn-ghost ${tSel===t?'on':''}" onclick="setT('${esc(t)}')">보물 ${esc(t)}</button>`).join('');
+
+    const list = filtered();
+    const T = D.treasures;
+    const fullCnt = list.filter(s => T.every(t => st(s.sid,t)===2)).length;
+    const perT = T.map(t => list.filter(s => st(s.sid,t)===2).length);
+    $('summary').innerHTML = `<div class="sbox">학생<b>${list.length}</b></div><div class="sbox">전부 완료<b>${fullCnt}</b></div>` +
+      T.map((t,i) => `<div class="sbox">보물${esc(t)}<b>${perT[i]}</b></div>`).join('');
+
+    if(mode === 'table') renderTable(list, T); else renderGallery(list);
+  }
+
+  function renderTable(list, T){
+    $('view').innerHTML = `<div class="hint">🟩 이름+사진 완료(클릭하면 사진) · 🟨 이름만 맞힘 · — 미완료</div>
+      <div class="tblwrap"><table><thead><tr><th>학번</th><th>이름</th>${T.map(t=>`<th>보물 ${esc(t)}</th>`).join('')}<th>완료</th></tr></thead><tbody>` +
+      list.map(s => {
+        let n = 0;
+        const cells = T.map(t => {
+          const v = st(s.sid, t), r = D.rec[s.sid+'_'+t];
+          if(v===2){ n++; return `<td><span class="cell c2" onclick="viewPhoto('${esc(r.f)}','${esc(r.t||r.f)}','${esc(s.sid)}','${esc(s.name)}','${esc(t)}','${esc(r.p)}')"><span class="sn" data-f="${esc(r.t||r.f)}">⏳</span>${esc((r.p||'').slice(11,16))}</span></td>`; }
+          if(v===1) return `<td><span class="cell c1">이름 ✓</span></td>`;
+          return `<td><span class="cell c0">—</span></td>`;
+        }).join('');
+        return `<tr><td>${esc(s.sid)}</td><td class="l">${esc(s.name)}</td>${cells}<td class="tot ${n===T.length?'full':''}">${n}/${T.length}</td></tr>`;
+      }).join('') + `</tbody></table></div>`;
+    observeThumbs();
+  }
+
+  function renderGallery(list){
+    $('view').innerHTML = `<div class="gallery">` + list.map(s => {
+      const r = D.rec[s.sid+'_'+tSel];
+      if(!r || !r.f) return `<div class="g none"><div class="ph">미제출</div><div class="cap">${esc(s.name)}<small>${esc(s.sid)}</small></div></div>`;
+      return `<div class="g" onclick="viewPhoto('${esc(r.f)}','${esc(r.t||r.f)}','${esc(s.sid)}','${esc(s.name)}','${esc(tSel)}','${esc(r.p)}')">
+        <div class="ph sn2" data-f="${esc(r.t||r.f)}">불러오는 중…</div>
+        <div class="cap">${esc(s.name)}<small>${esc(s.sid)} · ${esc((r.p||'').slice(11,16))}</small></div></div>`;
+    }).join('') + `</div>`;
+    observeThumbs();
+  }
+
+  /* 화면에 보이는 썸네일만 15장씩 묶어서 불러오기 */
+  let io = null, queue = new Set(), running = 0;
+  function paint(f){
+    document.querySelectorAll(`[data-f="${CSS.escape(f)}"]`).forEach(el => {
+      if(!thumbs[f]){ el.innerHTML = '⚠️'; el.title = '사진을 불러오지 못했어요 (눌러서 원본 보기)'; return; }
+      el.innerHTML = `<img src="${thumbs[f]}">`;
+      el.querySelector('img').onerror = () => { el.innerHTML = '⚠️'; };
+    });
+  }
+  function observeThumbs(){
+    if(io) io.disconnect();
+    queue.clear();
+    io = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if(!en.isIntersecting) return;
+        const f = en.target.dataset.f; io.unobserve(en.target);
+        if(thumbs[f]) paint(f); else queue.add(f);
+      });
+      pump();
+    }, { rootMargin: '300px' });
+    document.querySelectorAll('[data-f]').forEach(el => io.observe(el));
+  }
+  async function pump(){
+    while(running < 3 && queue.size){
+      const ids = [...queue].slice(0, 10);
+      ids.forEach(id => queue.delete(id));
+      running++;
+      call('adminThumbs', CODE, ids)
+        .then(r => ids.forEach(id => { thumbs[id] = r[id] || ''; paint(id); }))
+        .catch(() => ids.forEach(id => { thumbs[id] = ''; paint(id); }))
+        .finally(() => { running--; pump(); });
+    }
+  }
+
+  async function viewPhoto(f, tk, sid, name, t, time){
+    $('vImg').src = thumbs[tk] || '';
+    $('vImg').style.display = thumbs[tk] ? '' : 'none';
+    $('vCap').innerHTML = `${esc(sid)} ${esc(name)} · 보물 ${esc(t)}<small>${esc(time)}</small>`;
+    $('viewer').style.display = 'flex';
+    try{ $('vImg').src = await call('adminPhoto', CODE, f, false); $('vImg').style.display = ''; }catch(e){ $('vCap').innerHTML += ' (불러오기 실패)'; }
+  }
+</script>
+</body>
+</html>
