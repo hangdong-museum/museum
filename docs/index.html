@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-<base target="_top">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>박물관 보물찾기</title>
+<script src="config.js"></script>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
 <style>
   :root{
@@ -197,7 +199,6 @@
 
 <div id="toast"></div>
 
-<?!= include('Images'); ?>
 <script>
   let U = null;          // {sid,name,code}
   let T = [];            // treasures
@@ -211,10 +212,16 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  function call(fn, ...args){
-    return new Promise((res, rej) => {
-      google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(e))[fn](...args);
-    });
+  async function call(fn, ...args){
+    if(!window.API_URL || /여기에/.test(window.API_URL)) throw new Error('config.js에 API 주소를 넣어 주세요.');
+    let r;
+    try{
+      r = await fetch(window.API_URL, { method: 'POST', body: JSON.stringify({ fn, args }) });
+    }catch(e){ throw new Error('인터넷 연결을 확인해 주세요.'); }
+    let j;
+    try{ j = await r.json(); }catch(e){ throw new Error('서버 응답을 읽지 못했어요. 잠시 후 다시 시도해 주세요.'); }
+    if(!j.ok) throw new Error(j.error || '오류가 발생했어요.');
+    return j.data;
   }
   function errText(e){ return (e && e.message ? e.message : String(e)).replace(/^Error:\s*/,''); }
   function toast(t){ const el=$('toast'); el.textContent=t; el.style.display='block'; clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',2400); }
@@ -352,10 +359,10 @@
     const t = T.find(x => x.no === no); if(!t) return;
     if(imgCache[no]){ imgEl.src = imgCache[no]; return; }
     const src = t.image;
-    if(!src){ imgCache[no] = (window.DEFAULT_IMAGES||{})[no] || ''; imgEl.src = imgCache[no]; return; }
+    if(!src){ imgCache[no] = `images/${no}.jpg`; imgEl.src = imgCache[no]; return; }
     if(/^https?:|^data:/.test(src)){ imgCache[no] = src; imgEl.src = src; return; }
     try{ imgCache[no] = await call('getTreasureImage', src); imgEl.src = imgCache[no]; }
-    catch(e){ imgEl.src = (window.DEFAULT_IMAGES||{})[no] || ''; }
+    catch(e){ imgEl.src = `images/${no}.jpg`; }
   }
 
   /* ── 상세 ── */

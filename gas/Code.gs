@@ -1,5 +1,6 @@
 /**
- * 국립중앙박물관 보물찾기 출석체크 (Google Apps Script)
+ * 국립중앙박물관 보물찾기 출석체크 — 데이터 서버 (Google Apps Script)
+ * - 화면은 GitHub Pages(docs/), 이 스크립트는 시트·드라이브 저장만 담당
  * - 스프레드시트에 바인딩된 스크립트로 사용
  * - 최초 1회 setup() 실행 → 시트/폴더 자동 생성
  */
@@ -11,19 +12,36 @@ const SHEET_RECORDS = '기록';
 
 const REC_HEADER = ['학번', '이름', '보물', '정답시각', '사진시각', '사진파일ID', '사진링크', '썸네일ID'];
 
-/* ───────── 웹앱 진입 ───────── */
-function doGet(e) {
-  const page = (e && e.parameter && e.parameter.page === 'admin') ? 'Admin' : 'Index';
-  const t = HtmlService.createTemplateFromFile(page);
-  t.appUrl = ScriptApp.getService().getUrl();
-  return t.evaluate()
-    .setTitle(page === 'Admin' ? '보물찾기 현황' : '박물관 보물찾기')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+/* ───────── API 진입 (GitHub Pages 화면 → fetch POST) ─────────
+ * 요청: { fn: '함수이름', args: [...] }   (Content-Type: text/plain)
+ * 응답: { ok: true, data } 또는 { ok: false, error }
+ */
+const API = {
+  login: login,
+  checkAnswer: checkAnswer,
+  uploadPhoto: uploadPhoto,
+  getTreasureImage: getTreasureImage,
+  adminData: adminData,
+  adminPhoto: adminPhoto,
+  adminThumbs: adminThumbs
+};
+
+function doPost(e) {
+  let res;
+  try {
+    const req = JSON.parse(e.postData.contents);
+    const fn = API[req.fn];
+    if (!fn) throw new Error('알 수 없는 요청입니다.');
+    res = { ok: true, data: fn.apply(null, req.args || []) };
+  } catch (err) {
+    res = { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function include(name) {
-  return HtmlService.createHtmlOutputFromFile(name).getContent();
+function doGet() {
+  return ContentService.createTextOutput(JSON.stringify({ ok: true, msg: '박물관 보물찾기 API 동작 중' }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /* ───────── 초기 설정 ───────── */
