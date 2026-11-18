@@ -58,6 +58,8 @@
   #viewer .cap{margin-top:10px;color:var(--text);font-size:15px}
   #viewer .cap small{color:var(--sub);margin-left:8px}
   .hint{color:var(--sub);font-size:12.5px;margin-bottom:10px}
+  .keep{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;color:var(--sub);font-size:13px;cursor:pointer}
+  .keep input{accent-color:var(--gold);width:16px;height:16px}
 </style>
 </head>
 <body>
@@ -66,6 +68,7 @@
     <h1>🗝️ 보물찾기 현황 (교사용)</h1>
     <input id="acode" class="inp" type="password" placeholder="관리자 코드" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn-gold" onclick="doLogin()">확인</button>
+    <label class="keep"><input type="checkbox" id="akeep" checked> 이 기기에서 로그인 유지</label>
     <div id="lmsg" class="msg"></div>
   </div>
 
@@ -75,6 +78,7 @@
       <button class="btn-ghost on" id="mTable" onclick="setMode('table')">현황표</button>
       <button class="btn-ghost" id="mGallery" onclick="setMode('gallery')">사진 모아보기</button>
       <button class="btn-gold" onclick="refresh()">새로고침</button>
+      <button class="btn-ghost" onclick="logout()">로그아웃</button>
     </div>
     <div class="tabs" id="classTabs"></div>
     <div class="tabs" id="tTabs" style="display:none"></div>
@@ -107,19 +111,62 @@
   const errText = e => (e && e.message ? e.message : String(e)).replace(/^Error:\s*/,'');
 
 
+  /* 로그인 유지: 서버가 발급한 토큰만 브라우저에 저장 (관리자 코드는 저장하지 않음) */
+  const KEY = 'mus_admin';
+  function saveSession(v){ try{ v ? localStorage.setItem(KEY, JSON.stringify(v)) : localStorage.removeItem(KEY); }catch(e){} }
+  function loadSession(){ try{ return JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ return null; } }
+
+  function showMain(){
+    $('login').style.display='none'; $('main').style.display='block';
+    tSel = tSel || D.treasures[0];
+    render();
+  }
+  function showLogin(msg){
+    CODE = ''; saveSession(null);
+    $('main').style.display='none'; $('login').style.display='block';
+    $('lmsg').textContent = msg || '';
+  }
+  function expired(e){ return /만료/.test(errText(e)); }
+
   async function doLogin(){
-    CODE = $('acode').value.trim();
+    const code = $('acode').value.trim();
+    if(!code){ $('lmsg').textContent = '관리자 코드를 입력해 주세요.'; return; }
     $('lmsg').textContent = '';
     try{
+      if($('akeep').checked){
+        const s = await call('adminLogin', code);
+        CODE = 't:' + s.token;
+        saveSession(s);
+      }else{
+        CODE = code;
+      }
       D = await call('adminData', CODE);
-      $('login').style.display='none'; $('main').style.display='block';
-      tSel = D.treasures[0];
-      render();
+      $('acode').value = '';
+      showMain();
     }catch(e){ $('lmsg').textContent = errText(e); }
   }
   async function refresh(){
-    try{ D = await call('adminData', CODE); render(); }catch(e){ alert(errText(e)); }
+    try{ D = await call('adminData', CODE); render(); }
+    catch(e){ if(expired(e)) showLogin(errText(e)); else alert(errText(e)); }
   }
+  async function logout(){
+    if(CODE.indexOf('t:') === 0){ try{ await call('adminLogout', CODE); }catch(e){} }
+    showLogin('로그아웃했어요.');
+  }
+
+  /* 저장된 로그인으로 자동 입장 */
+  (async function(){
+    const s = loadSession();
+    if(!s || !s.token || !(s.exp > Date.now())){ saveSession(null); return; }
+    CODE = 't:' + s.token;
+    $('lmsg').textContent = '불러오는 중…';
+    try{ D = await call('adminData', CODE); $('lmsg').textContent = ''; showMain(); }
+    catch(e){
+      if(expired(e)){ showLogin(errText(e)); return; }
+      CODE = '';   // 연결 오류 등: 저장된 로그인은 지우지 않고, 새로고침하면 다시 시도
+      $('lmsg').textContent = errText(e) + ' (새로고침하면 다시 시도합니다)';
+    }
+  })();
   function setMode(m){
     mode = m;
     $('mTable').classList.toggle('on', m==='table');
