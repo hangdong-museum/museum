@@ -22,6 +22,8 @@ const API = {
   markSaved: markSaved,
   uploadPhoto: uploadPhoto,
   getTreasureImage: getTreasureImage,
+  adminLogin: adminLogin,
+  adminLogout: adminLogout,
   adminData: adminData,
   adminPhoto: adminPhoto,
   adminThumbs: adminThumbs
@@ -313,8 +315,49 @@ function getTreasureImage(fileId) {
 }
 
 /* ───────── 관리자 API ───────── */
-function adminAuth_(code) {
-  if (norm_(code) !== norm_(getSettings_()['관리자코드'])) throw new Error('관리자 코드가 올바르지 않습니다.');
+const ADMIN_SESSION_DAYS_DEFAULT = 7;   // 로그인 유지 기간(일). 설정 탭에 '관리자로그인유지(일)' 행을 넣으면 그 값 사용
+
+function hash_(s) {
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(s), Utilities.Charset.UTF_8));
+}
+
+/** 관리자 인증: 관리자 코드 또는 로그인 토큰('t:토큰')
+ *  - 토큰은 발급 당시 관리자 코드와 묶여 있어서, 설정 탭에서 코드를 바꾸면 기존 로그인은 모두 풀림 */
+function adminAuth_(cred) {
+  const real = norm_(getSettings_()['관리자코드']);
+  const s = String(cred || '');
+  if (s.indexOf('t:') === 0) {
+    const v = PropertiesService.getScriptProperties().getProperty('adm_' + s.slice(2));
+    if (v) {
+      const o = JSON.parse(v);
+      if (o.exp > Date.now() && o.h === hash_(real)) return;
+    }
+    throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+  }
+  if (!real || norm_(s) !== real) throw new Error('관리자 코드가 올바르지 않습니다.');
+}
+
+/** 관리자 코드 확인 후 로그인 토큰 발급 → 브라우저에 저장해 두고 일정 기간 재로그인 없이 사용 */
+function adminLogin(code) {
+  adminAuth_(code);
+  const props = PropertiesService.getScriptProperties();
+  const now = Date.now();
+  // 만료된 토큰 정리
+  Object.keys(props.getProperties()).forEach(k => {
+    if (k.indexOf('adm_') !== 0) return;
+    try { if (JSON.parse(props.getProperty(k)).exp < now) props.deleteProperty(k); } catch (e) { props.deleteProperty(k); }
+  });
+  const days = Number(getSettings_()['관리자로그인유지(일)']) || ADMIN_SESSION_DAYS_DEFAULT;
+  const token = Utilities.getUuid();
+  const exp = now + days * 86400000;
+  props.setProperty('adm_' + token, JSON.stringify({ exp: exp, h: hash_(norm_(getSettings_()['관리자코드'])) }));
+  return { token: token, exp: exp };
+}
+
+function adminLogout(cred) {
+  const s = String(cred || '');
+  if (s.indexOf('t:') === 0) PropertiesService.getScriptProperties().deleteProperty('adm_' + s.slice(2));
+  return true;
 }
 
 function adminData(code) {
